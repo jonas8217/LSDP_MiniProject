@@ -109,10 +109,16 @@ for i,h in enumerate(hierarchy[0]):
 # h[2] != -1 means it is there is another contour within it
 # h[3] != -1 means it is a contour within another contour
 
-# define
+# define 
 min_pixels = 15 # TODO base it on the GSD and physical pumpkin size
+
+
 
 # TODO use standard cv2 functions to determine the area and circularity of the areas for classifying if it is in fact a pumpkin
 # maybe use a clustering alorithm to get more circular result of multiple pumpkins with overlapping regions
 
 # maybe just count pixels and find out how many pixels per average pumpkin??
+
+# probably use another criteria, also think about pumpkins that go into the same pixel cluster
+# https://stackoverflow.com/questions/58182631/opencv-counting-overlapping-circles-using-morphological-operation
+# https://answers.opencv.org/question/43195/detecting-overlapping-circles/
