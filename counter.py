@@ -52,7 +52,7 @@ def generate_mahalanobis_mask(img,mean,cov,max_dist):
     mahalanobis_distance_image_norm = mahalanobis_distance_image / max_dist
     
     annotated_mahalanobis_threshold = np.zeros(mahalanobis_distance_image.shape,dtype=img.dtype)
-    annotated_mahalanobis_threshold[mahalanobis_distance_image_norm < 0.01] = 1
+    annotated_mahalanobis_threshold[mahalanobis_distance_image_norm < 0.006] = 1
     
     mahalanobis_mask = np.reshape(
         annotated_mahalanobis_threshold, 
@@ -122,3 +122,8 @@ min_pixels = 15 # TODO base it on the GSD and physical pumpkin size
 # probably use another criteria, also think about pumpkins that go into the same pixel cluster
 # https://stackoverflow.com/questions/58182631/opencv-counting-overlapping-circles-using-morphological-operation
 # https://answers.opencv.org/question/43195/detecting-overlapping-circles/
+# k-means clustering?
+# https://docs.opencv.org/3.4/d1/d5c/tutorial_py_kmeans_opencv.html
+
+
+
