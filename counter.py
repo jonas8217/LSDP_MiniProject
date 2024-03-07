@@ -89,12 +89,10 @@ def generate_onetime_mahalanobis_hsv_values():
 
 def generate_onetime_CIELAB_values():
     # cielab range ((0,-127,-127),(100,128,128))
-    img = load_image_num("0482")
+    img = load_image_name("09_blurred.JPG","output/09/")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2Lab)
-    H,W,_ = img.shape
-    img_sliced = img[H-H//8:,W-W//8:]
-    mask = load_image_name("0482_sliced_mask_cielab.JPG","masks/")
-    pixels = img_sliced.reshape((-1))
+    pixels = img.reshape((-1))
+    mask = load_image_name("window_9_blurred_mask.JPG","masks/")
     mask = mask.reshape((-1))
     annotated_pixels = pixels[mask == 255].reshape((-1,3))
     range = np.array([np.min(annotated_pixels,axis=0),np.max(annotated_pixels,axis=0)])
@@ -108,34 +106,31 @@ def generate_cielab_inrange_mask(img,range=None):
 def get_sub_contours(idx, contours, hierarchy):
     res = []
     i = hierarchy[idx][2]
-    while hierarchy[i][3] != -1:
+    while i < len(hierarchy) and hierarchy[i][3] != -1:
         res.append(contours[i])
         i += 1
     return res
 
 
-
-#print(generate_onetime_mahalanobis_hsv_values())
-
+# img_ = np.array([[[int(255*0.230), int(255*0.292), int(255*0.357)]]], dtype=np.uint8) # BGR
+# img_ = np.array([[[134, 149, 165]]], dtype=np.uint8) # BGR
+# print(cv2.cvtColor(img_, cv2.COLOR_BGR2Lab))
 
 DEBUG = True
 MAHALANOBIS = False
 CIELAB = True
 TEST = False
 
-
+#print(generate_onetime_mahalanobis_hsv_values())
 mean = np.array([ 15.12      , 180.26666667, 225.36      ])
 cov = np.array([[   1.45837838,    6.33243243,   -3.57081081],
                 [   6.33243243,  103.79279279, -178.17837838],
                 [  -3.57081081, -178.17837838,  825.53081081]])
 max_dist_mahalanobis = 35554.24373277427
 
-cielab_range = np.array([[102, 132, 143],[226, 157, 190]])
 cielab_range = generate_onetime_CIELAB_values()
-# cielab_range[1][0] = 255
-# cielab_range[1][1] = 255
-# cielab_range[1][2] = 255
 print(cielab_range)
+#cielab_range = np.array([[102, 132, 143],[226, 157, 190]])
 
 
 if TEST:
@@ -150,7 +145,7 @@ if TEST:
         
     if DEBUG:
         print(np.unique(mask))
-        num_str = str(num).rjust(2,'0')
+        num_str = str(num).rjust(4,'0')
         folder = f"output/{num_str}"
         if not os.path.exists(folder):
             os.mkdir(folder)
@@ -166,24 +161,21 @@ if TEST:
                 mask)
     exit()
 
+overlap_px,rows,cols = list(map(int,open("rasterized/rasta_meta.csv","r").read().split("\n")[1].split(",")))
+
+
+
 total_pumpkins = 0
-### Filtering and conversion
-for num in range(14):
-
+for num in range(rows*cols):
+    col,row = num%cols,num//cols
     img = load_image_name(f"window_{num}.jpg","rasterized/")
-
+    W,H,_ = img.shape
+    
     img_blurred = cv2.GaussianBlur(img,(3,3),0,borderType=cv2.BORDER_REPLICATE)
-    if DEBUG:
-        cv2.imwrite(f"output/{num}_blurred.JPG",
-                img_blurred)
     
     if MAHALANOBIS:
-
-        ### Use Mean an Cov
         mahalanobis_mask = generate_mahalanobis_mask(img_blurred,mean,cov,max_dist_mahalanobis)
-
-        mahalanobis_mask_blurred = cv2.medianBlur(mahalanobis_mask,3)
-
+        #mahalanobis_mask_blurred = cv2.medianBlur(mahalanobis_mask,3)
         mask = mahalanobis_mask
 
     elif CIELAB:
@@ -191,7 +183,6 @@ for num in range(14):
         
 
     if DEBUG:
-        print(np.unique(mask))
         num_str = str(num).rjust(2,'0')
         folder = f"output/{num_str}"
         if not os.path.exists(folder):
@@ -199,14 +190,17 @@ for num in range(14):
         annotated_image = img_blurred.copy()
         annotated_image[mask == 0] = 0
         annotated_image_inv = img_blurred.copy()
-        annotated_image_inv[mask == 255] = 0
+        annotated_image_inv[mask != 0] = 0
         cv2.imwrite(f"{folder}/{num_str}_annotated.JPG",
                 annotated_image)
         cv2.imwrite(f"{folder}/{num_str}_annotated_inv.JPG",
                 annotated_image_inv)
         cv2.imwrite(f"{folder}/{num_str}_mask.JPG",
-                mask*255)
-    exit()
+                mask)
+        cv2.imwrite(f"{folder}/{num_str}_blurred.JPG",
+                img_blurred)
+        print(f"{folder}/{num_str}_blurred.JPG")
+
     contours, hierarchy = cv2.findContours(mask,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_NONE)
     hierarchy = hierarchy[0]
     #print(hierarchy[0][0:4])
@@ -227,10 +221,28 @@ for num in range(14):
                     if inner_area > 5:
                         area -= inner_area
             
+            # check if the contour is touching the left or top edge, in which case ignore it, since it is "has been" counted in the overlap (unless first row or column)
+            if col != 0:
+                if c[0,0][0] < overlap_px: # using for extra purpose, equivelent idea
+                    for coord in c:
+                        if coord[0][0] == 0:
+                            continue
+            
+            if row != 0:
+                if c[0,0][1] < overlap_px: # using for extra purpose, equivelent idea
+                    for coord in c:
+                        if coord[0][1] == 0:
+                            continue
+            
+            # now count all other countours which are in the image including those that thouch the boundery on the right and bottom side of the overlap pixels and the original image  
+            
+            # not really a good method :(
+            # is arbitrarely dependant on the range calibration which is faulty due to the color loss the creation of the orthomosaic has had
             pumpkins += max(1,round(area/average_pumpkin_area))
 
     total_pumpkins += pumpkins
     print(pumpkins)
+    exit()
 
 print(total_pumpkins)
 
@@ -239,13 +251,10 @@ print(total_pumpkins)
 # h[3] != -1 means it is a contour within another contour
 
 
-
-# TODO use standard cv2 functions to determine the area and circularity of the areas for classifying if it is in fact a pumpkin
+# Possible methods
+# use standard cv2 functions to determine the area and circularity of the areas for classifying if it is in fact a pumpkin
 # maybe use a clustering alorithm to get more circular result of multiple pumpkins with overlapping regions
-
 # maybe just count pixels and find out how many pixels per average pumpkin??
-
-# probably use another criteria, also think about pumpkins that go into the same pixel cluster
 # https://stackoverflow.com/questions/58182631/opencv-counting-overlapping-circles-using-morphological-operation
 # https://answers.opencv.org/question/43195/detecting-overlapping-circles/
 # k-means clustering?
