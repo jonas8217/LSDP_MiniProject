@@ -13,80 +13,6 @@ def load_image_name(file_name : str, path : str = directory):
 def load_image_num(num : str): # only the original images (not rasterized from orthomosaic)
     return load_image_name(f"EB-02-660_0595_{num}.JPG", "Images for first miniproject/")
 
-def generate_mean_and_cov_from_mask(img, mask):
-    pixels = img.reshape((-1))
-    mask = mask.reshape((-1))
-    annotated_pixels = pixels[mask == 255].reshape((-1,3))
-
-    mean = np.average(annotated_pixels, axis=0)
-    cov = np.cov(annotated_pixels.transpose())
-
-    return mean,cov
-
-def get_max_possible_mahalanobis_hsv_distance(mean,cov):
-    HSV_max = [180,255,255]
-    max_dist = 0
-    test_img = np.zeros((8,3))
-    for i in range(1,8):
-        test_img[i] = np.multiply(HSV_max,[i%2,(i//2)%2,i//4])
-    return np.max(get_mahalanobis_image(test_img,mean,cov))
-
-def get_mahalanobis_image(img,mean,cov):
-    # Calculate the euclidean distance to the reference_color annotated color.
-    pixels = img.reshape((-1,3))
-    shape_pixels = pixels.shape
-    diff = pixels - np.repeat([mean], shape_pixels[0], axis=0)
-    inv_cov = np.linalg.inv(cov)
-    moddotproduct = diff * (diff @ inv_cov)
-    mahalanobis_dist = np.sum(moddotproduct, 
-        axis=1)
-    
-    mahalanobis_distance_image = np.reshape(
-        mahalanobis_dist, 
-        img.shape[:-1])
-    
-    return mahalanobis_distance_image
-
-def generate_mahalanobis_mask(img,mean,cov,max_dist):
-    img_temp = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    mahalanobis_distance_image = get_mahalanobis_image(img_temp,mean,cov)
-
-    # Norm the image by the maximum possible distance for consistancy across images
-    mahalanobis_distance_image_norm = mahalanobis_distance_image / max_dist
-    
-    annotated_mahalanobis_threshold = np.zeros(mahalanobis_distance_image.shape,dtype=img_temp.dtype)
-    annotated_mahalanobis_threshold[mahalanobis_distance_image_norm < 0.01] = 1
-    
-    mahalanobis_mask = np.reshape(
-        annotated_mahalanobis_threshold, 
-        (img_temp.shape[0],
-         img_temp.shape[1]))
-    
-    return mahalanobis_mask
-
-def generate_onetime_mahalanobis_hsv_values():
-    num = 482
-    num = str(num).rjust(4,'0')
-
-    img = load_image_num(num)
-    mask = load_image_name(f"{num}_sliced_mask.JPG","masks/")
-
-    # create cropped image (bottom right 1/8 by 1/8 of the image)
-    H,W,_ = img.shape
-    img_sliced = img[H-H//8:,W-W//8:]
-    cv2.imwrite(f'output/{num}_sliced.JPG', img_sliced)
-
-    img_sliced = cv2.cvtColor(img_sliced, cv2.COLOR_BGR2HSV)
-
-    mean,cov = generate_mean_and_cov_from_mask(img_sliced, mask)
-
-    print(mean)
-    print(cov)
-    max_dist_mahalanobis = get_max_possible_mahalanobis_hsv_distance(mean,cov)
-    
-    return mean,cov,max_dist_mahalanobis
-
-
 def generate_onetime_CIELAB_values():
     # cielab range ((0,-127,-127),(100,128,128))
     img = load_image_name("window_0.jpg","rasterized/")
@@ -111,29 +37,17 @@ def get_sub_contours(idx, contours, hierarchy):
         i += 1
     return res
 
-
-# img_ = np.array([[[int(255*0.230), int(255*0.292), int(255*0.357)]]], dtype=np.uint8) # BGR
-# img_ = np.array([[[134, 149, 165]]], dtype=np.uint8) # BGR
-# print(cv2.cvtColor(img_, cv2.COLOR_BGR2Lab))
-
 DEBUG = True
-MAHALANOBIS = False
-CIELAB = True
 TEST = False
 
-#print(generate_onetime_mahalanobis_hsv_values())
-mean = np.array([ 15.12      , 180.26666667, 225.36      ])
-cov = np.array([[   1.45837838,    6.33243243,   -3.57081081],
-                [   6.33243243,  103.79279279, -178.17837838],
-                [  -3.57081081, -178.17837838,  825.53081081]])
-max_dist_mahalanobis = 35554.24373277427
 
-cielab_range = generate_onetime_CIELAB_values()
-cielab_range[0][0] = 170
-cielab_range[1][1] = 255
-cielab_range[1][2] = 255
+
+# cielab_range = generate_onetime_CIELAB_values()
+# cielab_range[0][0] = 170
+# cielab_range[1][1] = 255
+# cielab_range[1][2] = 255
+cielab_range = np.array([[170, 122, 152], [233, 255, 255]])
 print(cielab_range)
-#cielab_range = np.array([[102, 132, 143],[226, 157, 190]])
 
 
 if TEST:
@@ -174,14 +88,10 @@ for num in range(rows*cols):
     H,W,_ = img.shape
     
     #img_blurred = cv2.GaussianBlur(img,(3,3),0,borderType=cv2.BORDER_REPLICATE)
-    
-    if MAHALANOBIS:
-        mask = generate_mahalanobis_mask(img,mean,cov,max_dist_mahalanobis)
-        mask = cv2.medianBlur(mask,3)
 
-    elif CIELAB:
-        mask = generate_cielab_inrange_mask(img,cielab_range)
-        mask = cv2.medianBlur(mask,3)
+
+    mask = generate_cielab_inrange_mask(img,cielab_range)
+    mask = cv2.medianBlur(mask,3)
         
 
     if DEBUG:
@@ -203,6 +113,8 @@ for num in range(rows*cols):
                 img)
 
     contours, hierarchy = cv2.findContours(mask,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_NONE)
+    if hierarchy is None:
+        continue
     hierarchy = hierarchy[0]
     #print(hierarchy[0][0:4])
 
