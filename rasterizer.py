@@ -6,7 +6,7 @@ from rasterio.env import Env
 
 in_folder_path = "./orthomosaic/"
 out_folder_path = "./rasterized/"
-mosaic_name = "pumpkin_patch_cut_better.jpg"
+mosaic_name = "pumpkin_patch_cut_better_isolated.jpg"
 img_path = in_folder_path + mosaic_name
 n = 40
 overlap_px = 65

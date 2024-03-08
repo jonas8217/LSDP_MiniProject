@@ -15,7 +15,7 @@ def load_image_num(num : str): # only the original images (not rasterized from o
 
 def generate_onetime_CIELAB_values():
     # cielab range ((0,-127,-127),(100,128,128))
-    img = load_image_name("window_0.jpg","rasterized/")
+    img = load_image_name("window_0_better_res.JPG","masks/")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2Lab)
     pixels = img.reshape((-1))
     mask = load_image_name("window_0_better_res_mask.JPG","masks/")
@@ -37,16 +37,18 @@ def get_sub_contours(idx, contours, hierarchy):
         i += 1
     return res
 
-DEBUG = True
+DEBUG = False
 TEST = False
 
+import time
 
+start = time.time()
 
-# cielab_range = generate_onetime_CIELAB_values()
+#cielab_range = generate_onetime_CIELAB_values()
 # cielab_range[0][0] = 170
-# cielab_range[1][1] = 255
+# cielab_range[1][1] = 210
 # cielab_range[1][2] = 255
-cielab_range = np.array([[170, 122, 152], [233, 255, 255]])
+cielab_range = np.array([[170, 122, 152], [233, 210, 255]])
 print(cielab_range)
 
 
@@ -122,23 +124,23 @@ for num in range(rows*cols):
 
     small = 35
     big = 235
-    cluster = 158
+    cluster = 165
     
-    
+    min_pumpkin_size = 15
+    max_segmentation_artefact_size = 5
 
     pumpkins = 0
     centers = []
-    print(num,row,col)
     for i,c,h in zip(list(range(len(contours))),contours,hierarchy):
         if h[3] == -1:
             area = cv2.contourArea(c)
-            if area < 15: # get rid of small areas
+            if area < min_pumpkin_size: # get rid of small areas
                 continue
             if h[2] != -1: # ignore "holes" in patches of multiple pumpkins forming a ring
                 inner_contours = get_sub_contours(i, contours, hierarchy)
                 for inner in inner_contours:
                     inner_area = cv2.contourArea(inner)
-                    if inner_area > 5:
+                    if inner_area > max_segmentation_artefact_size:
                         area -= inner_area
             # check if the contour is touching the left or top edge, in which case ignore it, since it is "has been" counted in the overlap (unless first row or column)
             test = False
@@ -217,6 +219,8 @@ for num in range(rows*cols):
                 circle_annotated_image)
 
 print(total_pumpkins)
+
+print(time.time() - start)
 
 # h[0] and h[1] not useful
 # h[2] != -1 means there is another contour within it
